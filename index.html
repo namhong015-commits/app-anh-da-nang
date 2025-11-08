@@ -15,9 +15,10 @@
   <h1>🪄 Tạo ảnh từ mô tả</h1>
   <textarea id="prompt" rows="3" placeholder="Nhập mô tả cho ảnh..."></textarea><br />
   <select id="size">
-    <option value="256x256">256x256</option>
-    <option value="512x512" selected>512x512</option>
-    <option value="1024x1024">1024x1024</option>
+  <option value="1024x1024" selected>1024×1024 (vuông)</option>
+  <option value="1024x1536">1024×1536 (dọc)</option>
+  <option value="1536x1024">1536×1024 (ngang)</option>
+  <option value="auto">Tự động (auto)</option>
   </select><br />
   <button onclick="generate()">Tạo ảnh</button>
 
