@@ -1,48 +1,57 @@
 <script>
 async function generate() {
-  const prompt = document.getElementById('prompt').value.trim();
-  const size   = document.getElementById('size').value;   // 1024x1024 / 1024x1536 / 1536x1024 / auto
-  const n      = parseInt(document.getElementById('count').value || '1', 10);
+  const prompt = document.getElementById('prompt')?.value?.trim();
+  const size   = document.getElementById('size')?.value || '1024x1024'; // 1024x1024 | 1024x1536 | 1536x1024 | auto
+  const n      = parseInt(document.getElementById('count')?.value || '1', 10);
 
   if (!prompt) {
     alert('Vui lòng nhập mô tả bức ảnh');
     return;
   }
 
-  const btn = document.getElementById('btn-generate');
-  btn.disabled = true;
+  const btn  = document.getElementById('btn-generate') || document.querySelector('[data-action="generate"]');
+  const out  = document.getElementById('result') || document.querySelector('#result');
+
+  if (out) out.innerHTML = '⏳ Đang tạo ảnh…';
+  if (btn) btn.disabled = true;
 
   try {
     const res = await fetch('/generate', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt, size, n })
     });
 
-    const data = await res.json();
+    // Đọc JSON hoặc text để thấy lỗi thô
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
 
     if (!res.ok) {
-      // Hiện lỗi ra màn hình
-      throw new Error(data.error || JSON.stringify(data));
+      throw new Error(data?.error || data?.message || data?.raw || ('HTTP ' + res.status));
     }
 
-    // Server có thể trả 1 url hoặc mảng urls
-    const urls = Array.isArray(data.urls) ? data.urls : [data.url];
+    const urls = Array.isArray(data.urls) ? data.urls : (data.url ? [data.url] : []);
+    if (!urls.length) {
+      throw new Error('Server không trả về URL ảnh');
+    }
 
-    const out = document.getElementById('result');
-    out.innerHTML = '';
-    urls.forEach(u => {
-      const img = new Image();
-      img.src = u;
-      img.loading = 'lazy';
-      img.className = 'w-full rounded-lg shadow';
-      out.appendChild(img);
-    });
-
+    if (out) {
+      out.innerHTML = '';
+      urls.forEach(u => {
+        const img = new Image();
+        img.src = u;
+        img.loading = 'lazy';
+        img.className = 'max-w-full rounded-xl shadow';
+        out.appendChild(img);
+      });
+    }
   } catch (err) {
+    console.error('Generate error:', err);
+    if (out) out.innerHTML = `<div style="color:#f66">Lỗi: ${err.message}</div>`;
     alert('Lỗi: ' + err.message);
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 </script>
