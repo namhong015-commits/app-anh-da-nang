@@ -1,14 +1,13 @@
 {
   "name": "app-anh-da-nang",
   "version": "1.0.0",
-  "type": "commonjs",
-  "engines": { "node": ">=18" },
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
+  "engines": { "node": ">=18.17" },
   "dependencies": {
     "express": "^4.19.2",
-    "cors": "^2.8.5",
-    "openai": "^4.55.0"
+    "openai": "^4.55.3"
   }
 }
