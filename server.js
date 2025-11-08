@@ -1,30 +1,46 @@
-app.use(express.json({ limit: '1mb' }));
+// server.js (ESM)
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import OpenAI from "openai";
 
-app.post('/generate', async (req, res) => {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+
+const app = express();
+app.use(express.json({ limit: "5mb" }));
+app.use(express.static(path.join(__dirname))); // nếu index.html nằm cùng thư mục
+
+// OpenAI client
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// API tạo ảnh
+app.post("/generate", async (req, res) => {
   try {
-    const { prompt, size = '1024x1024', n = 1 } = req.body || {};
+    const { prompt, size = "1024x1024", n = 1 } = req.body || {};
     if (!prompt || !prompt.trim()) {
-      return res.status(400).json({ error: 'Missing prompt' });
+      return res.status(400).json({ error: "Vui lòng nhập mô tả (prompt)!" });
     }
 
-    const count = Math.max(1, Math.min(parseInt(n, 10) || 1, 4)); // tạo tối đa 4 ảnh/lần
-    console.log('[POST /generate]', { prompt: prompt.slice(0, 80), size, n: count });
+    const resp = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt,
+      size, // "1024x1024" | "1024x1536" | "1536x1024"
+      n
+    });
 
-    const urls = [];
-    for (let i = 0; i < count; i++) {
-      const img = await openai.images.generate({
-        model: 'gpt-image-1',
-        prompt,
-        size
-      });
-      const url = img.data?.[0]?.url;
-      if (!url) throw new Error('OpenAI không trả URL ảnh');
-      urls.push(url);
-    }
-
-    return res.json({ urls });
-  } catch (err) {
-    console.error('API /generate error:', err);
-    return res.status(500).json({ error: err.message || 'Internal Server Error' });
+    const images = (resp.data || []).map(d => `data:image/png;base64,${d.b64_json}`);
+    res.json({ images });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: String(e.message || e) });
   }
 });
+
+// Trang chính (nếu dùng index.html)
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
