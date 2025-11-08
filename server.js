@@ -1,42 +1,30 @@
-// server.js (CommonJS)
-const express = require('express');
-const path = require('path');
-const cors = require('cors');
-const OpenAI = require('openai').default;  // <- QUAN TRỌNG: .default
+app.use(express.json({ limit: '1mb' }));
 
-const app = express();
-
-app.use(cors({ origin: '*' }));
-app.use(express.json({ limit: '5mb' }));
-
-// Nếu bạn có index.html cùng thư mục:
-app.use(express.static(__dirname));
-
-// API tạo ảnh
 app.post('/generate', async (req, res) => {
   try {
-    const { prompt, size = '1024x1024' } = req.body || {};
+    const { prompt, size = '1024x1024', n = 1 } = req.body || {};
     if (!prompt || !prompt.trim()) {
-      return res.status(400).json({ error: 'Vui lòng nhập mô tả (prompt)!' });
-    }
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: 'Thiếu OPENAI_API_KEY trên server.' });
+      return res.status(400).json({ error: 'Missing prompt' });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const count = Math.max(1, Math.min(parseInt(n, 10) || 1, 4)); // tạo tối đa 4 ảnh/lần
+    console.log('[POST /generate]', { prompt: prompt.slice(0, 80), size, n: count });
 
-    const result = await openai.images.generate({
-      model: 'gpt-image-1',
-      prompt,
-      size  // '1024x1024' | '1024x1536' | '1536x1024' | 'auto'
-    });
+    const urls = [];
+    for (let i = 0; i < count; i++) {
+      const img = await openai.images.generate({
+        model: 'gpt-image-1',
+        prompt,
+        size
+      });
+      const url = img.data?.[0]?.url;
+      if (!url) throw new Error('OpenAI không trả URL ảnh');
+      urls.push(url);
+    }
 
-    return res.json({ url: result.data[0].url });
+    return res.json({ urls });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: err.message || 'Server error' });
+    console.error('API /generate error:', err);
+    return res.status(500).json({ error: err.message || 'Internal Server Error' });
   }
 });
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Server running on port ' + PORT));
