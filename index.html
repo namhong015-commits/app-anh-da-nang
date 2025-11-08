@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>App tạo ảnh đa năng</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:860px;margin:40px auto;padding:0 16px}
+    h1{margin:0 0 16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    textarea{width:100%;min-height:120px;padding:12px;font-size:16px}
+    select,button{padding:10px 12px;font-size:15px}
+    button{cursor:pointer}
+    .preview{margin-top:20px}
+    .preview img{max-width:100%;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+    .muted{color:#666}
+  </style>
+</head>
+<body>
+  <h1>🖼️ App tạo ảnh đa năng</h1>
+  <p class="muted">Nhập mô tả (prompt) rồi bấm <b>Tạo ảnh</b>. Ảnh sẽ được tạo bởi OpenAI.</p>
+
+  <textarea id="prompt" placeholder="Ví dụ: A cyberpunk city at sunset, neon lights, cinematic, ultra-detailed"></textarea>
+
+  <div class="row">
+    <label>Kích thước:
+      <select id="size">
+        <option>512x512</option>
+        <option>256x256</option>
+        <option>1024x1024</option>
+      </select>
+    </label>
+    <button id="btn">Tạo ảnh</button>
+    <span id="status" class="muted"></span>
+  </div>
+
+  <div class="preview" id="preview"></div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    $("#btn").addEventListener("click", async () => {
+      const prompt = $("#prompt").value.trim();
+      const size = $("#size").value;
+      if (!prompt) { alert("Nhập prompt trước nhé!"); return; }
+
+      $("#status").textContent = "⏳ Đang tạo ảnh...";
+      $("#btn").disabled = true;
+      $("#preview").innerHTML = "";
+
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ prompt, size })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Lỗi không xác định");
+
+        const img = new Image();
+        img.src = data.image;
+        $("#preview").appendChild(img);
+        $("#status").textContent = "✅ Hoàn tất!";
+      } catch (e) {
+        $("#status").textContent = "❌ " + e.message;
+      } finally {
+        $("#btn").disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
