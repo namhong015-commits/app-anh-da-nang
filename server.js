@@ -1,52 +1,55 @@
 // server.js
+// App tạo ảnh từ mô tả: Node.js + Express + OpenAI Images (gpt-image-1)
+
 const express = require("express");
 const path = require("path");
 const OpenAI = require("openai");
 
 const app = express();
-app.use(express.json({ limit: "5mb" }));
 
-// PORT Railway cấp, fallback 8080 khi chạy local
-const PORT = process.env.PORT || 8080;
+// đọc JSON body & tăng limit một chút cho an toàn
+app.use(express.json({ limit: "2mb" }));
 
-// Trang giao diện
-app.get("/", (req, res) => {
+// Trang giao diện (index.html ở root repo)
+app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // API tạo ảnh
-app.post("/api/generate", async (req, res) => {
-  const { prompt, size = "512x512" } = req.body || {};
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(500).json({ error: "Thiếu OPENAI_API_KEY trên Railway." });
-  }
-  if (!prompt || !prompt.trim()) {
-    return res.status(400).json({ error: "Vui lòng nhập prompt." });
-  }
-
+app.post("/generate", async (req, res) => {
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const { prompt, size = "1024x1024" } = req.body || {};
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ error: "Vui lòng nhập mô tả (prompt)!" });
+    }
 
-    const result = await openai.images.generate({
+    // Khởi tạo OpenAI client với API key đã lưu ở Railway
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    // Gọi Images API (gpt-image-1)
+    const img = await client.images.generate({
       model: "gpt-image-1",
-      prompt: prompt,
-      size: size,
-      response_format: "b64_json",
+      prompt: prompt.trim(),
+      size, // "256x256" | "512x512" | "1024x1024"
+      // bạn có thể thêm: background: "transparent", quality: "high" ...
     });
 
-    const b64 = result.data[0].b64_json;
-    res.json({ image: `data:image/png;base64,${b64}` });
+    // API trả về base64
+    const b64 = img.data[0].b64_json;
+    return res.json({ dataUrl: `data:image/png;base64,${b64}` });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message || "Lỗi tạo ảnh" });
+    console.error("Generate error:", err);
+    // trả lỗi “đẹp” cho UI
+    const msg =
+      err?.response?.data?.error?.message ||
+      err?.message ||
+      "Đã có lỗi xảy ra khi tạo ảnh.";
+    res.status(500).json({ error: msg });
   }
 });
 
-// Lưu ý listen trên 0.0.0.0 để Railway truy cập được
+// Cấu hình PORT/host cho Railway
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`✅ Server started on ${PORT}`);
 });
-
-
-
- 
