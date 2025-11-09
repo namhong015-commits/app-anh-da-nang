@@ -5,42 +5,58 @@ import { fileURLToPath } from "url";
 import OpenAI from "openai";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
-app.use(express.static(path.join(__dirname))); // nếu index.html ở cùng thư mục
 
-// Client OpenAI
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Serve static files từ thư mục public
+app.use(express.static(path.join(__dirname, "public")));
 
-// API tạo ảnh
+// --- API GENERATE ---
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 app.post("/generate", async (req, res) => {
   try {
     const { prompt, size = "1024x1024", n = 1 } = req.body || {};
-    if (!prompt || !prompt.trim()) {
-      return res.status(400).json({ error: "Vui lòng nhập mô tả (prompt)!" });
+
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      return res.status(400).json({ error: "Thiếu prompt hợp lệ" });
     }
 
-    const resp = await openai.images.generate({
+    // size hợp lệ: 1024x1024 | 1024x1536 | 1536x1024 | auto
+    const sz = ["1024x1024", "1024x1536", "1536x1024", "auto"].includes(size)
+      ? size
+      : "1024x1024";
+
+    // Gọi OpenAI Images
+    const out = await client.images.generate({
       model: "gpt-image-1",
       prompt,
-      size, // "1024x1024" | "1024x1536" | "1536x1024"
-      n
+      size: sz === "auto" ? "1024x1024" : sz,
+      n: Math.min(Math.max(parseInt(n) || 1, 1), 4), // 1..4
+      response_format: "b64_json",
     });
 
-    const images = (resp.data || []).map(d => `data:image/png;base64,${d.b64_json}`);
-    res.json({ images });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: String(e.message || e) });
+    const images =
+      out?.data?.map((d) => `data:image/png;base64,${d.b64_json}`) || [];
+
+    return res.json({ images });
+  } catch (err) {
+    console.error("Error /generate:", err?.response?.data || err);
+    return res.status(500).json({
+      error: "Lỗi khi tạo ảnh",
+      detail: err?.message || String(err),
+    });
   }
 });
 
-// Trang chính (nếu dùng index.html)
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+// Fallback (mở SPA / public/index.html) – Để cuối cùng
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server listening on http://localhost:${PORT}`);
+});
