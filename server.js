@@ -1,11 +1,37 @@
-// server.js (đoạn gọi OpenAI)
-const result = await openai.images.generate({
-  model: "gpt-image-1",
-  prompt,
-  size, // "1024x1024" | "1024x1536" | "1536x1024" | "auto"
-  n     // số lượng ảnh
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import OpenAI from "openai";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Chuyển kết quả thành data URL để hiển thị trên web
-const images = result.data.map(d => `data:image/png;base64,${d.b64_json}`);
-res.json({ images });
+app.post("/generate", async (req, res) => {
+  try {
+    const { prompt, size, n } = req.body;
+
+    const result = await client.images.generate({
+      model: "gpt-image-1",
+      prompt,
+      size,
+      n,
+    });
+
+    const images = result.data.map(d => d.url || `data:image/png;base64,${d.b64_json}`);
+    res.json({ images });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || "Lỗi tạo ảnh" });
+  }
+});
+
+const port = process.env.PORT || 8080;
+app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
