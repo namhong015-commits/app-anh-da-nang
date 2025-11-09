@@ -1,4 +1,4 @@
-// server.js (ESM)
+// server.js
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -9,9 +9,9 @@ const __dirname  = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
-app.use(express.static(path.join(__dirname))); // nếu index.html nằm cùng thư mục
+app.use(express.static(path.join(__dirname))); // nếu index.html ở cùng thư mục
 
-// OpenAI client
+// Client OpenAI
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // API tạo ảnh
