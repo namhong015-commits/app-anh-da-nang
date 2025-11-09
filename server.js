@@ -4,53 +4,55 @@ import path from "path";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
 
+// Đường dẫn thư mục chạy ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json({ limit: "5mb" }));
-app.use(express.static(path.join(__dirname, "public")));
 
+// parse JSON body + phục vụ static từ /public
+app.use(express.json({ limit: "5mb" }));
+app.use(express.static(path.join(__dirname, "public"))); // có public/index.html
+
+// Khởi tạo OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // khai báo trên Railway
+});
+
+// API tạo ảnh
 app.post("/generate", async (req, res) => {
   try {
     const { prompt, size = "1024x1024", n = 1 } = req.body || {};
-
     if (!prompt || !prompt.trim()) {
-      return res.status(400).json({ error: "Vui lòng nhập mô tả bức ảnh." });
+      return res.status(400).json({ error: "Prompt is required" });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "OPENAI_API_KEY không tồn tại trên server." });
-    }
-
-    // KHỞI TẠO TRONG HANDLER (chỉ khi có request)
-    const openai = new OpenAI({ apiKey });
-
+    // gọi API: trả base64
     const result = await openai.images.generate({
       model: "gpt-image-1",
       prompt,
-      size,
-      n
+      size,             // "1024x1024" | "1024x1536" | ...
+      n: Number(n) || 1,
+      response_format: "b64_json",
     });
 
-    const urls = result?.data?.map((it) => it?.url).filter(Boolean) ?? [];
-    return res.json({ images: urls, raw: result?.data });
+    // chuyển về data URL để frontend hiển thị
+    const images = (result?.data || []).map((item) => {
+      const b64 = item?.b64_json || "";
+      return `data:image/png;base64,${b64}`;
+    });
+
+    return res.json({ images });
   } catch (err) {
-    console.error("Generate error:", err);
-    const msg =
-      err?.response?.data?.error?.message ||
-      err?.message ||
-      "Lỗi không xác định";
-    return res.status(500).json({ error: msg });
+    console.error("Generate error:", err?.response?.data || err?.message || err);
+    return res.status(500).json({
+      error: err?.response?.data || err?.message || "Unknown error",
+    });
   }
 });
 
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server started on http://0.0.0.0:${PORT}`);
+// cổng Railway cung cấp qua biến PORT
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.log(`Server listening on http://localhost:${PORT}`);
 });
