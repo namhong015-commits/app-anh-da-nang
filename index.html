@@ -1,92 +1,84 @@
+<!-- public/index.html -->
 <!doctype html>
 <html lang="vi">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AI Tạo ảnh từ mô tả</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:960px;margin:40px auto;padding:0 16px}
-    h1{margin:0 0 16px}
-    .row{display:grid;grid-template-columns:1fr 160px 120px auto;gap:12px;align-items:start}
-    textarea{width:100%;height:110px;padding:10px;font-size:14px}
-    select,input,button{height:42px;font-size:14px;padding:0 10px}
-    button{cursor:pointer}
-    #result{margin-top:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
-    .card{border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;background:#fff}
-    .card img{width:100%;display:block}
-    .card .cta{display:flex;gap:8px;padding:10px;border-top:1px solid #eee}
-    .muted{opacity:.7}
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; line-height: 1.45; margin: 24px; }
+    textarea, select, input, button { font: inherit; padding: 10px; border: 1px solid #ddd; border-radius: 8px; }
+    textarea { width: 100%; min-height: 120px; }
+    .row { display: flex; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+    button { background: #7c3aed; color: #fff; border: none; cursor: pointer; }
+    button[disabled] { opacity: 0.6; cursor: not-allowed; }
+    #result img { max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+    .muted { color: #777; font-size: 14px; }
   </style>
 </head>
 <body>
-  <h1>AI Tạo ảnh từ mô tả</h1>
+  <h1>🖼️ AI Tạo ảnh từ mô tả</h1>
+
+  <label for="prompt"><b>Mô tả bức ảnh</b></label>
+  <textarea id="prompt" placeholder="Ví dụ: Phong cách anime, ánh sáng mềm. Một chú mèo đội mũ phi hành gia đang bay trong vũ trụ."></textarea>
 
   <div class="row">
-    <textarea id="prompt" placeholder="Mô tả bức ảnh..."></textarea>
+    <div>
+      <label for="size">Kích thước</label><br />
+      <select id="size">
+        <option value="1024x1024">1024×1024</option>
+        <option value="1024x1536">1024×1536 (dọc)</option>
+        <option value="1536x1024">1536×1024 (ngang)</option>
+        <option value="auto">Auto</option>
+      </select>
+    </div>
 
-    <select id="size" title="Kích thước">
-      <option value="1024x1024" selected>1024×1024</option>
-      <option value="1024x1536">1024×1536 (dọc)</option>
-      <option value="1536x1024">1536×1024 (ngang)</option>
-      <option value="auto">auto</option>
-    </select>
-
-    <input id="count" type="number" min="1" max="4" value="1" title="Số ảnh" />
-
-    <button id="btn-generate" data-action="generate" onclick="generate()">🚀 Tạo ảnh</button>
+    <div>
+      <label for="count">Số ảnh</label><br />
+      <input id="count" type="number" min="1" max="4" value="1" />
+    </div>
   </div>
 
-  <div id="result" class="muted">Chưa có kết quả.</div>
+  <button id="btn-generate" onclick="generate()">🚀 Tạo ảnh</button>
+
+  <div id="result" class="muted" style="margin-top:16px;">Chưa có kết quả.</div>
 
   <script>
     async function generate() {
-      const prompt = document.getElementById('prompt')?.value?.trim();
-      const size   = document.getElementById('size')?.value || '1024x1024';
-      const n      = parseInt(document.getElementById('count')?.value || '1', 10);
+      const prompt = document.getElementById("prompt")?.value?.trim();
+      const size = document.getElementById("size")?.value || "1024x1024";
+      const n = parseInt(document.getElementById("count")?.value || "1", 10);
 
-      if (!prompt) {
-        alert('Vui lòng nhập mô tả bức ảnh!');
-        return;
-      }
+      if (!prompt) { alert("Vui lòng nhập mô tả bức ảnh!"); return; }
 
-      const btn = document.getElementById('btn-generate') || document.querySelector('[data-action="generate"]');
-      const out = document.getElementById('result') || document.querySelector('#result');
-
-      if (out) out.innerHTML = '⏳ Đang tạo ảnh…';
+      const btn = document.getElementById("btn-generate");
+      const out = document.getElementById("result");
+      if (out) out.innerHTML = "⏳ Đang tạo ảnh…";
       if (btn) btn.disabled = true;
 
       try {
-        const res = await fetch('/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const res = await fetch("/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt, size, n })
         });
 
-        if (!res.ok) throw new Error('Request failed: ' + res.status);
-
         const data = await res.json();
 
-        // Kỳ vọng backend trả { images: ["data:image/png;base64,...", ...] } hoặc { urls: ["https://..."] }
-        const sources = data?.images || data?.urls || [];
+        if (!res.ok) {
+          throw new Error(data?.error || "Lỗi tạo ảnh");
+        }
 
-        if (!Array.isArray(sources) || !sources.length) {
-          out.innerHTML = '<div>Không có ảnh trả về.</div>';
+        const images = data?.images || data?.urls || [];
+        if (!images.length) {
+          out.innerHTML = "<i>Không nhận được ảnh trả về.</i>";
           return;
         }
 
-        out.classList.remove('muted');
-        out.innerHTML = sources.map((src, i) => `
-          <div class="card">
-            <img src="${src}" alt="image ${i+1}" loading="lazy" />
-            <div class="cta">
-              <a href="${src}" download="image-${i+1}.png">⬇️ Tải về</a>
-              <a href="${src}" target="_blank" rel="noopener">🔍 Mở ảnh</a>
-            </div>
-          </div>
-        `).join('');
+        out.innerHTML = images.map((src) => `<div style="margin:10px 0;"><img src="${src}" alt="result" /></div>`).join("");
       } catch (err) {
         console.error(err);
-        if (out) out.innerHTML = '<div style="color:#b91c1c">Lỗi tạo ảnh: ' + (err?.message || 'Unknown') + '</div>';
+        out.innerHTML = `<span style="color:#d00">❌ ${err.message || "Lỗi không xác định"}</span>`;
       } finally {
         if (btn) btn.disabled = false;
       }
