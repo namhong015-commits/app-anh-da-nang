@@ -9,54 +9,48 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json({ limit: "5mb" }));
-
-// Serve static files từ thư mục public
 app.use(express.static(path.join(__dirname, "public")));
-
-// --- API GENERATE ---
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 app.post("/generate", async (req, res) => {
   try {
     const { prompt, size = "1024x1024", n = 1 } = req.body || {};
 
-    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
-      return res.status(400).json({ error: "Thiếu prompt hợp lệ" });
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ error: "Vui lòng nhập mô tả bức ảnh." });
     }
 
-    // size hợp lệ: 1024x1024 | 1024x1536 | 1536x1024 | auto
-    const sz = ["1024x1024", "1024x1536", "1536x1024", "auto"].includes(size)
-      ? size
-      : "1024x1024";
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "OPENAI_API_KEY không tồn tại trên server." });
+    }
 
-    // Gọi OpenAI Images
-    const out = await client.images.generate({
+    // KHỞI TẠO TRONG HANDLER (chỉ khi có request)
+    const openai = new OpenAI({ apiKey });
+
+    const result = await openai.images.generate({
       model: "gpt-image-1",
       prompt,
-      size: sz === "auto" ? "1024x1024" : sz,
-      n: Math.min(Math.max(parseInt(n) || 1, 1), 4), // 1..4
-      response_format: "b64_json",
+      size,
+      n
     });
 
-    const images =
-      out?.data?.map((d) => `data:image/png;base64,${d.b64_json}`) || [];
-
-    return res.json({ images });
+    const urls = result?.data?.map((it) => it?.url).filter(Boolean) ?? [];
+    return res.json({ images: urls, raw: result?.data });
   } catch (err) {
-    console.error("Error /generate:", err?.response?.data || err);
-    return res.status(500).json({
-      error: "Lỗi khi tạo ảnh",
-      detail: err?.message || String(err),
-    });
+    console.error("Generate error:", err);
+    const msg =
+      err?.response?.data?.error?.message ||
+      err?.message ||
+      "Lỗi không xác định";
+    return res.status(500).json({ error: msg });
   }
 });
 
-// Fallback (mở SPA / public/index.html) – Để cuối cùng
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server started on http://0.0.0.0:${PORT}`);
 });
